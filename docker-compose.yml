@@ -1,0 +1,64 @@
+version: '3.7'
+
+# Services
+services:
+
+  # Nginx Service
+  nginx:
+      image: nginx:1.17-alpine
+      ports:
+        - 80:80
+      volumes:
+        - ./src/backend:/var/www/backend:ro,delegated
+        - ./.docker/nginx/conf.d:/etc/nginx/conf.d:ro
+        - phpmyadmindata:/var/www/phpmyadmin:ro,delegated
+      depends_on:
+        - backend
+        - phpmyadmin
+        - frontend
+
+  # Backend Service
+  backend:
+    build: ./src/backend
+    working_dir: /var/www/backend
+    volumes:
+      - ./src/backend:/var/www/backend:delegated
+      - ./.docker/backend/init:/opt/files/init:delegated,ro
+    depends_on:
+      - mysql
+
+  # Frontend Service
+  frontend:
+    build: ./src/frontend
+    working_dir: /var/www/frontend
+    volumes:
+      - ./src/frontend:/var/www/frontend:delegated
+    depends_on:
+      - backend
+
+  #MySQL Service
+  mysql:
+    image: mysql:8
+    environment:  
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: dev
+    volumes:
+      - ./.docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - mysqldata:/var/lib/mysql:delegated
+
+  # PHPMyAdmin Service
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:5-fpm-alpine
+    environment:
+      PMA_HOST: mysql
+    volumes:
+      - phpmyadmindata:/var/www/html:delegated
+    depends_on:
+      - mysql    
+  
+# Volumes
+volumes:
+  
+  mysqldata:
+
+  phpmyadmindata:

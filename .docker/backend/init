@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Install Composer dependencies
+composer install -d "/var/www/backend"
+
+# Lets get some project details from the user :)
+read -p 'Project Name: ' projectName
+read -p 'Frontend Domain: ' frontendDomain
+read -p 'Backend Domain: ' backendDomain
+read -p 'Database Name: ' databaseName
+read -p 'Database User: ' databaseUser
+read -sp 'Database Password: ' databasePassword
+
+# create the local .env file
+cat > ".env.test" << EOF
+COMPOSE_PROJECT_NAME=$projectName
+databaseName=$databaseName
+databaseUser=$databaseUser
+databasePassword=$databasePassword
+EOF
+
+# Create the backend .env file
+cat > "/var/www/backend/.env" << EOF
+APP_NAME=$projectName
+APP_ENV=local
+APP_KEY=
+APP_DEBUG=true
+APP_URL=http://backend.dev.test
+
+LOG_CHANNEL=single
+
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
+DB_DATABASE=$databaseName
+DB_USERNAME=$databaseUser
+DB_PASSWORD=$databasePassword
+
+BROADCAST_DRIVER=log
+CACHE_DRIVER=file
+QUEUE_CONNECTION=sync
+SESSION_DRIVER=file
+EOF
+
+# Generate application key
+php "/var/www/backend/artisan" key:generate --ansi
+
+# Make sure the MySQL database is available
+echo 'Waiting for MySQL to be available'
+count=1
+while [ $count -le 10 ] && ! mysql -u$databaseName -p$databasePassword -hmysql -P3306 -e 'exit' ; do
+    sleep 5
+    ((count++))
+done
+if [ "$count" -ge 10 ]; then
+    echo >&2 'error: failed to connect to MySQL after 10 attempts'
+    exit 1
+fi
+echo 'MySQL connection successful!'
+
+# Database
+php "/var/www/backend/artisan" migrate
