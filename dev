@@ -39,14 +39,103 @@ env () {
   fi
 }
 
+# Ford, lets see if we can do some stuff
+ford () {
+  # Lets get some project details from the user :)
+  read -p 'Project Name: ' projectName
+  read -p 'Frontend Domain: ' frontendDomain
+  read -p 'Backend Domain: ' backendDomain
+  read -p 'Database Name: ' databaseName
+  read -p 'Database User: ' databaseUser
+  read -sp 'Database Password: ' databasePassword
+
+  # Now lets save this information and build 2 dockerfiles
+  # WRITE .env file with the above info
+  # create the local .env file
+
+  cat > ".env" << EOF
+COMPOSE_PROJECT_NAME=$projectName
+FRONT_END_DOMAIN=$frontendDomain
+BACK_END_DOMAIN=$backendDomain
+DATABASE_NAME=$databaseName
+DATABASE_USER=$databaseUser
+DATABASE_PASSWORD=$databasePassword
+EOF
+
+  export COMPOSE_PROJECT_NAME=$projectName
+  export FRONT_END_DOMAIN=$frontendDomain
+  export BACK_END_DOMAIN=$backendDomain
+  export DATABASE_NAME=$databaseName
+  export DATABASE_USER=$databaseUser
+  export DATABASE_PASSWORD=$databasePassword
+
+  # Create src folder
+  mkdir src
+
+  # Create backend folder
+  mkdir src/backend
+
+  # Create dockerfile
+  cat > "src/backend/Dockerfile" << EOF
+FROM php:7.4-fpm-alpine
+
+# Install extensions
+RUN docker-php-ext-install pdo_mysql bcmath
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+
+# Install extra packages
+RUN apk --no-cache add bash mysql-client mariadb-connector-c-dev
+EOF
+
+  # Create frontend folder
+  mkdir src/frontend
+
+  # Create dockerfile
+  cat > "src/frontend/Dockerfile" << EOF
+FROM node:13.10-alpine
+
+# Start application
+CMD ["yarn", "serve"]
+EOF
+
+  # Create vue.config.js
+cat > "src/frontend/vue.config.js" << EOF
+module.exports = {
+    devServer: {
+        disableHostCheck: true,
+        sockHost: '${FRONT_END_DOMAIN}.${COMPOSE_PROJECT_NAME}.test',
+        watchOptions: {
+            ignored: /node_modules/,
+            aggregateTimeout: 300,
+            poll: 1000,
+        }
+    },
+};
+EOF
+
+}
+
 # Initialize the Docker environment and the application
 init () {
+  ford \
   env \
     && down -v \
     && build \
-    && docker-compose run --rm --entrypoint="//opt/files/init" backend \
+    && docker-compose --env-file .env \
+    run \
+    -e COMPOSE_PROJECT_NAME -e BACK_END_DOMAIN -e \
+    FRONT_END_DOMAIN -e DATABASE_NAME -e \
+    DATABASE_USER -e DATABASE_PASSWORD \
+    --rm --entrypoint="//opt/files/init" backend \
     && yarn install \
-    && start
+    && docker-compose run --rm frontend sh -c "yarn global add @vue/cli && vue create tmp --default --force" \
+    && sudo chown -R $USER:$USER . \
+    && docker-compose run --rm frontend sh -c "rm -rf node_modules && mv -n tmp/.* ./ && mv tmp/* ./ && rm -Rf tmp" \
+    && start 
+    
+    
 }
 
 # Display and tail the logs of all containers or the specified one's

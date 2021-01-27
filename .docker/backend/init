@@ -3,25 +3,24 @@
 # Install Composer dependencies
 composer install -d "/var/www/backend"
 
-# Lets get some project details from the user :)
-read -p 'Project Name: ' projectName
-read -p 'Frontend Domain: ' frontendDomain
-read -p 'Backend Domain: ' backendDomain
-read -p 'Database Name: ' databaseName
-read -p 'Database User: ' databaseUser
-read -sp 'Database Password: ' databasePassword
+echo "Initialize Script in Container"
+echo "Project Name = "${COMPOSE_PROJECT_NAME}
+echo "Front End Domain = "${FRONT_END_DOMAIN}
+echo "Back End Domain = "${BACK_END_DOMAIN}
+echo "Database Name = "$DATABASE_NAME
+echo "Database User = "${DATABASE_USER}
+echo "Database Password = "${DATABASE_PASSWORD}
 
-# create the local .env file
-cat > ".env.test" << EOF
-COMPOSE_PROJECT_NAME=$projectName
-databaseName=$databaseName
-databaseUser=$databaseUser
-databasePassword=$databasePassword
-EOF
+# Create the laravel project
+composer create-project --prefer-dist laravel/laravel tmp "8.*"
+
+# Wait until the project is created
+wait
+sh -c "mv -n tmp/.* ./ && mv tmp/* ./ && rm -Rf tmp"
 
 # Create the backend .env file
 cat > "/var/www/backend/.env" << EOF
-APP_NAME=$projectName
+APP_NAME=$COMPOSE_PROJECT_NAME
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true
@@ -32,9 +31,9 @@ LOG_CHANNEL=single
 DB_CONNECTION=mysql
 DB_HOST=mysql
 DB_PORT=3306
-DB_DATABASE=$databaseName
-DB_USERNAME=$databaseUser
-DB_PASSWORD=$databasePassword
+DB_DATABASE=$DATABASE_NAME
+DB_USERNAME=$DATABASE_USER
+DB_PASSWORD=$DATABASE_PASSWORD
 
 BROADCAST_DRIVER=log
 CACHE_DRIVER=file
@@ -48,7 +47,7 @@ php "/var/www/backend/artisan" key:generate --ansi
 # Make sure the MySQL database is available
 echo 'Waiting for MySQL to be available'
 count=1
-while [ $count -le 10 ] && ! mysql -u$databaseName -p$databasePassword -hmysql -P3306 -e 'exit' ; do
+while [ $count -le 10 ] && ! mysql -u$DATABASE_USER -p$DATABASE_PASSWORD -h mysql -P3306 -e 'exit' ; do
     sleep 5
     ((count++))
 done
