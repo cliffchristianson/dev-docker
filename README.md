@@ -10,7 +10,9 @@ docker setup plus scripts to:
 Ideally you just clone the repo, set perms on the script, and run it
 
 $git clone repo
+
 $chmod +x dev
+
 $dev init
 
 To Do:
